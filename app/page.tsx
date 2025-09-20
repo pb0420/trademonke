@@ -66,7 +66,7 @@ export default function HomePage() {
 
   // Memoize fetchPosts to avoid infinite update loop
   const fetchPosts = useCallback(async () => {
-    setError('e');
+    setError('');
     // Set loading state only if posts are empty (initial load), else searching
     if (posts.length === 0) setLoading(true);
     else setSearching(true);
