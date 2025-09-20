@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     let posts = getPostsWithDetails();
 
     // Filter by status (only approved posts for public)
-    posts = posts.filter(post => post.status === 'approved' && post.is_active);
+    posts = posts.filter(post => post.status === 'approved');
 
     // Apply search filter
     if (search) {
