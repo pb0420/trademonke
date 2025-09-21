@@ -34,7 +34,9 @@ export function CreatePostButton() {
   const [showDialog, setShowDialog] = useState(false);
 
   useEffect(() => {
-    fetchPlanInfo();
+    if (user) {
+      fetchPlanInfo();
+    }
   }, []);
 
   const fetchPlanInfo = async () => {
@@ -56,9 +58,9 @@ export function CreatePostButton() {
     return (
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogTrigger asChild>
-          <Button size="sm" variant="outline" className="hidden sm:flex rounded-full px-4 border-orange-200 text-orange-700 hover:bg-orange-50">
+          <Button size="sm" variant="outline" className="rounded-full px-4 border-orange-200 text-orange-700 hover:bg-orange-50">
             <Shield className="h-4 w-4 mr-1" />
-            Verify First
+            Create (Verify First)
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-md">
@@ -75,26 +77,35 @@ export function CreatePostButton() {
           <div className="space-y-4">
             <Alert>
               <AlertDescription>
-                <strong>Why verify?</strong> Verification builds trust with buyers and helps create a safer marketplace for everyone.
+                <strong>You can still create listings!</strong> Your posts will be held for review until both your profile and post are verified. 
+                Premium users get priority verification (24-48 hours faster).
               </AlertDescription>
             </Alert>
 
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <h4 className="font-medium">Verification Process:</h4>
+              <h4 className="font-medium">How it works:</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Upload a photo ID (driver's license, passport)</li>
-                <li>• Record a short verification video</li>
-                <li>• Wait for admin approval (24-48 hours)</li>
-                <li>• Get your verified badge and start posting!</li>
+                <li>• Create your listing now (it will be saved as draft)</li>
+                <li>• Complete profile verification</li>
+                <li>• Admin reviews both profile and post</li>
+                <li>• Once approved, your listing goes live!</li>
               </ul>
             </div>
 
-            <Button asChild className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700">
-              <Link href="/verify">
-                <Shield className="h-4 w-4 mr-2" />
-                Start Verification
-              </Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700">
+                <Link href="/posts/create">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Listing
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="flex-1">
+                <Link href="/verify">
+                  <Shield className="h-4 w-4 mr-2" />
+                  Verify Profile
+                </Link>
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -104,10 +115,10 @@ export function CreatePostButton() {
 
   if (canCreatePost.canCreate) {
     return (
-      <Button asChild size="sm" className="hidden sm:flex shadow-lg rounded-full px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+      <Button asChild size="sm" className="shadow-lg rounded-full px-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700">
         <Link href="/posts/create">
           <Plus className="h-4 w-4 mr-1" />
-          Post
+          Create
         </Link>
       </Button>
     );
@@ -116,7 +127,7 @@ export function CreatePostButton() {
   return (
     <Dialog open={showDialog} onOpenChange={setShowDialog}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="hidden sm:flex rounded-full px-4 border-orange-200 text-orange-700 hover:bg-orange-50">
+        <Button size="sm" variant="outline" className="rounded-full px-4 border-orange-200 text-orange-700 hover:bg-orange-50">
           <AlertCircle className="h-4 w-4 mr-1" />
           Post Limit
         </Button>
