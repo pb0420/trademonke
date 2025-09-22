@@ -1,12 +1,34 @@
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/data/dummy';
+import { createServerClient } from '@/lib/supabase/server';
 
 export async function GET() {
   try {
-    // In a real app, you would get the user from the session/JWT
+    // Try Supabase first
+    try {
+      const supabase = createServerClient();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (user && !error) {
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile && !profileError) {
+          return NextResponse.json({ user: profile });
+        }
+      }
+    } catch (supabaseError) {
+      console.log('Supabase error, using dummy data:', supabaseError);
+    }
+
+    // Fallback to dummy data
     const user = getCurrentUser();
     
     return NextResponse.json({ user });

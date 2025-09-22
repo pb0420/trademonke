@@ -53,6 +53,7 @@ export default function HomePage() {
   const [maxDistance, setMaxDistance] = useState<string>('50');
   const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState<string>('');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
@@ -64,12 +65,15 @@ export default function HomePage() {
   }, [initialSearch]);
 
 
-  // Memoize fetchPosts to avoid infinite update loop
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (isInitial = false) => {
     setError('');
-    // Set loading state only if posts are empty (initial load), else searching
-    if (posts.length === 0) setLoading(true);
-    else setSearching(true);
+    
+    if (isInitial) {
+      setLoading(true);
+    } else {
+      setSearching(true);
+    }
+
     try {
       // Build query parameters
       const params = new URLSearchParams();
@@ -97,47 +101,39 @@ export default function HomePage() {
     } finally {
       setLoading(false);
       setSearching(false);
+      if (isInitial) {
+        setIsInitialLoad(false);
+      }
     }
-  }, [searchQuery, selectedCategory, sortBy, location, userLocation, maxDistance, posts.length]);
+  }, [searchQuery, selectedCategory, sortBy, location, userLocation, maxDistance]);
 
-  // Debounced effect for fetching posts
+  // Initial load
   useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      if (!cancelled) fetchPosts();
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [fetchPosts]);
+    if (isInitialLoad) {
+      fetchPosts(true);
+    }
+  }, [isInitialLoad, fetchPosts]);
 
-  // ...existing code...
+  // Debounced effect for search and filters (not initial load)
+  useEffect(() => {
+    if (!isInitialLoad) {
+      const timer = setTimeout(() => {
+        fetchPosts(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, selectedCategory, sortBy, location, userLocation, maxDistance, isInitialLoad, fetchPosts]);
+
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
   };
 
   const handleLocationUpdate = (locationData: LocationData | null) => {
-    setUserLocation((prev) => {
-      // Only update if locationData is different from previous
-      if (
-        !prev ||
-        prev.latitude !== locationData?.latitude ||
-        prev.longitude !== locationData?.longitude ||
-        prev.address !== locationData?.address
-      ) {
-        // Only setSortBy if not already 'distance'
-        setSortBy((currentSort) => {
-          if (locationData && currentSort === 'newest') {
-            return 'distance';
-          }
-          return currentSort;
-        });
-        return locationData;
-      }
-      return prev;
-    });
+    setUserLocation(locationData);
+    if (locationData && sortBy === 'newest') {
+      setSortBy('distance');
+    }
   };
 
   const clearAllFilters = () => {
@@ -146,7 +142,9 @@ export default function HomePage() {
     setLocation('');
     setSortBy('newest');
     setMaxDistance('50');
+    setUserLocation(null);
   };
+
   const getActiveFiltersCount = () => {
     let count = 0;
     if (searchQuery.trim()) count++;

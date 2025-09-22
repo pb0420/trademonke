@@ -1,7 +1,8 @@
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPostsWithDetails, dummyPosts, calculateDistance } from '@/lib/data/dummy';
+import { createServerClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +15,53 @@ export async function GET(request: NextRequest) {
     const userLon = searchParams.get('userLon');
     const maxDistance = searchParams.get('maxDistance');
 
+    // Try Supabase first
+    try {
+      const supabase = createServerClient();
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          user:users(name, business_name, is_verified, avatar_url),
+          category:categories(name, icon),
+          media(url, type, order_index)
+        `)
+        .eq('status', 'approved')
+        .eq('privacy', 'public');
+
+      // Apply filters
+      if (search) {
+        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+      }
+      if (category) {
+        query = query.eq('category_id', category);
+      }
+      if (location) {
+        query = query.ilike('location', `%${location}%`);
+      }
+
+      // Apply sorting
+      switch (sortBy) {
+        case 'price-low':
+          query = query.order('price', { ascending: true });
+          break;
+        case 'price-high':
+          query = query.order('price', { ascending: false });
+          break;
+        default:
+          query = query.order('created_at', { ascending: false });
+      }
+
+      const { data, error } = await query.limit(50);
+      
+      if (data && !error) {
+        return NextResponse.json(data);
+      }
+    } catch (supabaseError) {
+      console.log('Supabase error, using dummy data:', supabaseError);
+    }
+
+    // Fallback to dummy data
     let posts = getPostsWithDetails();
 
     // Filter by status (only approved posts for public)

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -67,6 +66,9 @@ export default function PostPage() {
   }, [params?.id]);
 
   const fetchPost = async (postId: string) => {
+    setLoading(true);
+    setError('');
+    
     try {
       const response = await fetch(`/api/posts/${postId}`);
       if (response.ok) {
@@ -74,7 +76,11 @@ export default function PostPage() {
         setPost(data);
         
         // Increment view count
-        await fetch(`/api/posts/${postId}/view`, { method: 'POST' });
+        try {
+          await fetch(`/api/posts/${postId}/view`, { method: 'POST' });
+        } catch (viewError) {
+          console.warn('Failed to increment view count:', viewError);
+        }
       } else if (response.status === 404) {
         setError('Post not found');
       } else {
@@ -86,19 +92,19 @@ export default function PostPage() {
     } finally {
       setLoading(false);
     }
-  };
 
   const handleShare = async () => {
+    try {
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: post?.title,
-          text: post?.description,
           url: window.location.href,
         });
       } catch (error) {
         console.log('Share cancelled');
       }
+    } catch (error) {
+      console.log('Share cancelled or failed');
+    }
     } else {
       // Fallback to clipboard
       await navigator.clipboard.writeText(window.location.href);
@@ -223,11 +229,10 @@ export default function PostPage() {
             {/* Image Gallery */}
             <Card className="overflow-hidden rounded-3xl border-0 shadow-xl">
               <div className="aspect-video relative">
-                <Image
+                <img
                   src={images[selectedImageIndex]?.url || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=800&h=600&fit=crop'}
                   alt={post.title}
-                  fill
-                  className="object-cover"
+                  className="w-full h-full object-cover"
                 />
                 
                 {/* Image Navigation */}
@@ -280,11 +285,9 @@ export default function PostPage() {
                           : 'border-transparent hover:border-muted-foreground/30'
                       }`}
                     >
-                      <Image
+                      <img
                         src={image.url}
                         alt={`${post.title} ${index + 1}`}
-                        width={64}
-                        height={64}
                         className="object-cover w-full h-full"
                       />
                     </button>

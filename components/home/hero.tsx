@@ -16,6 +16,8 @@ export function Hero({ onLocationUpdate, onSearch, isSearching = false }: HeroPr
 
   // Auto-search with debounce
   useEffect(() => {
+    if (searchQuery === '') return; // Don't search for empty queries
+    
     const timer = setTimeout(() => {
       onSearch(searchQuery);
     }, 500);

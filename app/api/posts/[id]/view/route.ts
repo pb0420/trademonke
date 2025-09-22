@@ -1,6 +1,7 @@
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase/server';
 
 export async function POST(
   request: NextRequest,
@@ -13,33 +14,22 @@ export async function POST(
     const forwarded = request.headers.get("x-forwarded-for");
     const ip = forwarded ? forwarded.split(/, /)[0] : request.headers.get("x-real-ip") || 'unknown';
     
-    // In a real app, you'd store IP addresses with timestamps to track unique views
-    // For now, we'll just increment the view count
-    
     // Try to increment view count in Supabase first
     try {
-      // TODO: Implement Supabase view count increment
-      // const { error } = await supabase
-      //   .from('posts')
-      //   .update({ 
-      //     view_count: supabase.raw('view_count + 1'),
-      //     last_viewed_at: new Date().toISOString()
-      //   })
-      //   .eq('id', postId);
+      const supabase = createServerClient();
       
-      // if (error) throw error;
+      // Increment view count
+      const { error } = await supabase.rpc('increment_view_count', {
+        post_id: postId
+      });
       
-      // Also track unique views in a separate table
-      // const { error: uniqueError } = await supabase
-      //   .from('post_views')
-      //   .upsert({ 
-      //     post_id: postId, 
-      //     ip_address: ip, 
-      //     viewed_at: new Date().toISOString() 
-      //   }, { 
-      //     onConflict: 'post_id,ip_address',
-      //     ignoreDuplicates: true 
-      //   });
+      if (!error) {
+        return NextResponse.json({ 
+          success: true, 
+          message: 'View recorded',
+          ip: ip.substring(0, 8) + '...'
+        });
+      }
     } catch (supabaseError) {
       console.log('Supabase error, skipping view count:', supabaseError);
     }

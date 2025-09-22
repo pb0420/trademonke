@@ -1,7 +1,8 @@
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostsWithDetails } from '@/lib/data/dummy';
+import { getPostsWithDetails, dummyUsers } from '@/lib/data/dummy';
+import { createServerClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
@@ -12,20 +13,21 @@ export async function GET(
     
     // Try to get from Supabase first, fallback to dummy data
     try {
-      // TODO: Implement Supabase query
-      // const { data, error } = await supabase
-      //   .from('posts')
-      //   .select(`
-      //     *,
-      //     user:users(*),
-      //     category:categories(*),
-      //     media(*)
-      //   `)
-      //   .eq('id', postId)
-      //   .single();
+      const supabase = createServerClient();
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          user:users(*),
+          category:categories(*),
+          media(*)
+        `)
+        .eq('id', postId)
+        .single();
       
-      // if (error) throw error;
-      // return NextResponse.json(data);
+      if (data && !error) {
+        return NextResponse.json(data);
+      }
     } catch (supabaseError) {
       console.log('Supabase error, using dummy data:', supabaseError);
     }
@@ -38,14 +40,16 @@ export async function GET(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
     
-    // Add user verification status for demo
+    // Find the user data for verification status
+    const user = dummyUsers.find(u => u.id === post.user_id);
+    
     const postWithVerification = {
       ...post,
       user: {
         ...post.user,
         id: post.user_id,
-        verification_status: post.user.is_verified ? 'approved' : 'pending',
-        avatar_url: `https://images.unsplash.com/photo-${Math.random() > 0.5 ? '1472099645785-5658abf4ff4e' : '1494790108755-2616b612b786'}?w=150&h=150&fit=crop&crop=face`
+        verification_status: user?.verification_status || 'pending',
+        avatar_url: user?.avatar_url || `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`
       }
     };
     
