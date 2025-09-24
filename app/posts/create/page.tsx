@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,8 @@ import {
   CheckCircle,
   Clock,
   Crown,
-  Shield
+  Shield,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '@/components/providers';
 import { toast } from 'sonner';
@@ -38,6 +39,7 @@ export default function CreatePostPage() {
   const [error, setError] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -48,24 +50,39 @@ export default function CreatePostPage() {
     location: '',
     privacy: 'public',
     show_business_name: false,
+    allow_contact: true,
   });
 
-  // Fetch categories on mount
-  useState(() => {
-    fetchCategories();
-  });
-
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch('/api/categories');
-      if (response.ok) {
-        const data = await response.json();
-        setCategories([...data.categories, ...data.services]);
+  // Fetch categories only once
+  useEffect(() => {
+    let mounted = true;
+    
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const response = await fetch('/api/categories');
+        if (response.ok && mounted) {
+          const data = await response.json();
+          setCategories([...data.categories, ...data.services]);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        if (mounted) {
+          toast.error('Failed to load categories');
+        }
+      } finally {
+        if (mounted) {
+          setCategoriesLoading(false);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
+    };
+
+    fetchCategories();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -96,7 +113,10 @@ export default function CreatePostPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      toast.error('Please sign in to create a listing');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -149,8 +169,9 @@ export default function CreatePostPage() {
 
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Failed to create post');
-      toast.error(err.message || 'Failed to create post');
+      const errorMessage = err.message || 'Failed to create post';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -161,8 +182,10 @@ export default function CreatePostPage() {
       <div className="container mx-auto px-4 py-12 max-w-md">
         <Card>
           <CardContent className="text-center py-12">
-            <p>Please sign in to create a listing.</p>
-            <Button asChild className="mt-4">
+            <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-xl font-bold mb-2">Sign In Required</h3>
+            <p className="text-muted-foreground mb-4">Please sign in to create a listing.</p>
+            <Button asChild>
               <a href="/auth/signin">Sign In</a>
             </Button>
           </CardContent>
@@ -208,6 +231,7 @@ export default function CreatePostPage() {
                   placeholder="e.g., iPhone 14 Pro Max - Like New"
                   className="mt-1"
                   maxLength={100}
+                  required
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   {formData.title.length}/100 characters
@@ -223,6 +247,7 @@ export default function CreatePostPage() {
                   placeholder="Describe your item in detail. Include condition, features, and any relevant information..."
                   className="mt-1 min-h-[120px]"
                   maxLength={2000}
+                  required
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   {formData.description.length}/2000 characters
@@ -232,9 +257,13 @@ export default function CreatePostPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="category">Category</Label>
-                  <Select value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })}>
+                  <Select 
+                    value={formData.category_id} 
+                    onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                    disabled={categoriesLoading}
+                  >
                     <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select a category" />
+                      <SelectValue placeholder={categoriesLoading ? "Loading..." : "Select a category"} />
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((category) => (
@@ -259,6 +288,7 @@ export default function CreatePostPage() {
                       className="pl-10"
                       min="0"
                       step="0.01"
+                      required
                     />
                   </div>
                 </div>
@@ -283,7 +313,7 @@ export default function CreatePostPage() {
           {/* Images */}
           <Card className="rounded-2xl border-0 shadow-lg">
             <CardHeader>
-              <CardTitle>Photos</CardTitle>
+              <CardTitle>Photos *</CardTitle>
               <CardDescription>Add up to 10 photos of your item</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -340,6 +370,20 @@ export default function CreatePostPage() {
               <CardDescription>Configure how your listing appears</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="allow_contact">Allow Contact</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Let interested buyers message you directly
+                  </p>
+                </div>
+                <Switch
+                  id="allow_contact"
+                  checked={formData.allow_contact}
+                  onCheckedChange={(checked) => setFormData({ ...formData, allow_contact: checked })}
+                />
+              </div>
+
               {user.business_name && (
                 <div className="flex items-center justify-between">
                   <div>
@@ -390,15 +434,25 @@ export default function CreatePostPage() {
               variant="outline"
               onClick={() => router.back()}
               className="flex-1"
+              disabled={loading}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || selectedFiles.length === 0}
               className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
             >
-              {loading ? 'Creating...' : user.is_verified ? 'Create Listing' : 'Create & Submit for Review'}
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : user.is_verified ? (
+                'Create Listing'
+              ) : (
+                'Create & Submit for Review'
+              )}
             </Button>
           </div>
         </form>

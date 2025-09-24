@@ -212,6 +212,15 @@ export function Navbar() {
                 My Listings
               </Link>
             )}
+            {user && user.is_verified && (
+              <Link 
+                href="/messages" 
+                className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Messages
+              </Link>
+            )}
           </div>
         )}
       </div>
