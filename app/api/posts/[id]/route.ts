@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostsWithDetails, dummyUsers } from '@/lib/data/dummy';
 import { createServerClient } from '@/lib/supabase/server';
+import { cache, CACHE_KEYS } from '@/lib/cache';
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +11,13 @@ export async function GET(
   try {
     const postId = params.id;
     
-    // Try to get from Supabase first, fallback to dummy data
+    // Check cache first
+    const cachedData = cache.get(CACHE_KEYS.POST_DETAIL(postId));
+    if (cachedData) {
+      return NextResponse.json(cachedData);
+    }
+
+    // Try Supabase
     try {
       const supabase = createServerClient();
       const { data, error } = await supabase
@@ -26,36 +32,75 @@ export async function GET(
         .single();
       
       if (data && !error) {
+        // Cache for 5 minutes
+        cache.set(CACHE_KEYS.POST_DETAIL(postId), data, 5);
         return NextResponse.json(data);
       }
     } catch (supabaseError) {
-      console.log('Supabase error, using dummy data:', supabaseError);
+      console.log('Supabase error:', supabaseError);
     }
     
-    // Fallback to dummy data
-    const posts = getPostsWithDetails();
-    const post = posts.find(p => p.id === postId);
-    
-    if (!post) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-    }
-    
-    // Find the user data for verification status
-    const user = dummyUsers.find(u => u.id === post.user_id);
-    
-    const postWithVerification = {
-      ...post,
-      user: {
-        ...post.user,
-        id: post.user_id,
-        verification_status: user?.verification_status || 'pending',
-        avatar_url: user?.avatar_url || `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`
-      }
-    };
-    
-    return NextResponse.json(postWithVerification);
+    return NextResponse.json({ error: 'Post not found' }, { status: 404 });
   } catch (error) {
     console.error('Error fetching post:', error);
     return NextResponse.json({ error: 'Failed to fetch post' }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const postId = params.id;
+    const body = await request.json();
+    
+    const supabase = createServerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Update post
+    const { data, error } = await supabase
+      .from('posts')
+      .update({
+        title: body.title,
+        description: body.description,
+        category_id: body.category_id || null,
+        price: parseFloat(body.price),
+        location: body.location || null,
+        privacy: body.privacy || 'public',
+        show_business_name: body.show_business_name || false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', postId)
+      .eq('user_id', user.id) // Ensure user owns the post
+      .select(`
+        *,
+        user:users(*),
+        category:categories(*),
+        media(*)
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error updating post:', error);
+      return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: 'Post not found or unauthorized' }, { status: 404 });
+    }
+
+    // Clear cache
+    cache.delete(CACHE_KEYS.POST_DETAIL(postId));
+    cache.clear(); // Clear all cache to refresh lists
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error updating post:', error);
+    return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
   }
 }

@@ -1,12 +1,15 @@
 export const dynamic = "force-static";
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostsWithDetails, dummyPosts, calculateDistance } from '@/lib/data/dummy';
 import { createServerClient } from '@/lib/supabase/server';
+import { cache, CACHE_KEYS } from '@/lib/cache';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const offset = (page - 1) * limit;
     const search = searchParams.get('search');
     const category = searchParams.get('category');
     const location = searchParams.get('location');
@@ -15,7 +18,14 @@ export async function GET(request: NextRequest) {
     const userLon = searchParams.get('userLon');
     const maxDistance = searchParams.get('maxDistance');
 
-    // Try Supabase first
+    // Create cache key
+    const cacheKey = CACHE_KEYS.POSTS_LIST(searchParams.toString());
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData);
+    }
+
+    // Try Supabase
     try {
       const supabase = createServerClient();
       let query = supabase
@@ -29,15 +39,25 @@ export async function GET(request: NextRequest) {
         .eq('status', 'approved')
         .eq('privacy', 'public');
 
+      // Count total for pagination
+      let countQuery = supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .eq('privacy', 'public');
+
       // Apply filters
       if (search) {
         query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+        countQuery = countQuery.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
       }
       if (category) {
         query = query.eq('category_id', category);
+        countQuery = countQuery.eq('category_id', category);
       }
       if (location) {
         query = query.ilike('location', `%${location}%`);
+        countQuery = countQuery.ilike('location', `%${location}%`);
       }
 
       // Apply sorting
@@ -52,98 +72,41 @@ export async function GET(request: NextRequest) {
           query = query.order('created_at', { ascending: false });
       }
 
-      const { data, error } = await query.limit(50);
+      // Get total count
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+
+      // Get paginated data
+      const { data, error } = await query
+        .range(offset, offset + limit - 1);
       
       if (data && !error) {
-        return NextResponse.json(data);
+        const result = {
+          posts: data,
+          total: count || 0,
+          page,
+          limit,
+          hasMore: (count || 0) > offset + limit
+        };
+        
+        // Cache for 2 minutes
+        cache.set(cacheKey, result, 2);
+        return NextResponse.json(result);
       }
     } catch (supabaseError) {
       console.log('Supabase error, using dummy data:', supabaseError);
     }
 
-    // Fallback to dummy data
-    let posts = getPostsWithDetails();
-
-    // Filter by status (only approved posts for public)
-    posts = posts.filter(post => post.status === 'approved');
-
-    // Apply search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      posts = posts.filter(post => 
-        post.title.toLowerCase().includes(searchLower) ||
-        post.description.toLowerCase().includes(searchLower) ||
-        post.location.toLowerCase().includes(searchLower) ||
-        post.category.name.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Apply category filter
-    if (category) {
-      posts = posts.filter(post => post.category_id === category);
-    }
-
-    // Apply location filter
-    if (location) {
-      const locationLower = location.toLowerCase();
-      posts = posts.filter(post => 
-        post.location.toLowerCase().includes(locationLower)
-      );
-    }
-
-    // Apply distance filter if user location is provided
-    if (userLat && userLon && maxDistance) {
-      const userLatNum = parseFloat(userLat);
-      const userLonNum = parseFloat(userLon);
-      const maxDistanceNum = parseFloat(maxDistance);
-      
-      posts = posts.filter(post => {
-        if (!post.latitude || !post.longitude) return false;
-        const distance = calculateDistance(userLatNum, userLonNum, post.latitude, post.longitude);
-        return distance <= maxDistanceNum;
-      });
-    }
-
-    // Add distance to posts if user location is provided
-    if (userLat && userLon) {
-      const userLatNum = parseFloat(userLat);
-      const userLonNum = parseFloat(userLon);
-      
-      posts = posts.map(post => ({
-        ...post,
-        distance: post.latitude && post.longitude 
-          ? calculateDistance(userLatNum, userLonNum, post.latitude, post.longitude)
-          : null
-      }));
-    }
-
-    // Apply sorting
-    switch (sortBy) {
-      case 'price-low':
-        posts.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-high':
-        posts.sort((a, b) => b.price - a.price);
-        break;
-      case 'distance':
-        if (userLat && userLon) {
-          posts.sort((a, b) => {
-            const distanceA = (a as any).distance || Infinity;
-            const distanceB = (b as any).distance || Infinity;
-            return distanceA - distanceB;
-          });
-        }
-        break;
-      case 'newest':
-      default:
-        posts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        break;
-    }
-
-    // Limit results
-    posts = posts.slice(0, 50);
-
-    return NextResponse.json(posts);
+    // Fallback - return empty results
+    const fallbackResult = {
+      posts: [],
+      total: 0,
+      page,
+      limit,
+      hasMore: false
+    };
+    
+    return NextResponse.json(fallbackResult);
   } catch (error) {
     console.error('Error fetching posts:', error);
     return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
@@ -152,25 +115,46 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createServerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     
-    // In a real app, you would:
-    // 1. Validate the user is authenticated
-    // 2. Validate the post data
-    // 3. Save to database
-    // 4. Handle file uploads
-    
-    // For now, just return success
-    const newPost = {
-      id: Date.now().toString(),
-      ...body,
-      status: 'pending',
-      view_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    // Validate required fields
+    if (!body.title || !body.description || !body.price) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
 
-    return NextResponse.json(newPost, { status: 201 });
+    // Create post in Supabase
+    const { data, error } = await supabase
+      .from('posts')
+      .insert({
+        user_id: user.id,
+        title: body.title,
+        description: body.description,
+        category_id: body.category_id || null,
+        price: parseFloat(body.price),
+        location: body.location || null,
+        privacy: body.privacy || 'public',
+        show_business_name: body.show_business_name || false,
+        status: 'pending' // All posts start as pending
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating post:', error);
+      return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+    }
+
+    // Clear cache
+    cache.clear();
+    
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Error creating post:', error);
     return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });

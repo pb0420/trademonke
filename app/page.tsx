@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, MapPin, Filter, SlidersHorizontal, Navigation } from 'lucide-react';
+import { Search, MapPin, Filter, SlidersHorizontal, Navigation, ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -53,8 +53,14 @@ export default function HomePage() {
   const [maxDistance, setMaxDistance] = useState<string>('50');
   const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState<string>('');
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [showCategories, setShowCategories] = useState(true);
+  const [totalResults, setTotalResults] = useState(0);
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const POSTS_PER_PAGE = 20;
   
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
@@ -66,22 +72,28 @@ export default function HomePage() {
   }, [initialSearch]);
 
 
-  const fetchPosts = useCallback(async (isInitial = false, force = false) => {
-    // Prevent duplicate calls
-    if (!force && hasFetched && !isInitial) return;
-    
+  const fetchPosts = useCallback(async (pageNum = 1, append = false) => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
+
     setError('');
     
-    if (isInitial) {
+    if (!append) {
       setLoading(true);
-      setHasFetched(true);
+      setPage(1);
     } else {
-      setSearching(true);
+      setLoadingMore(true);
     }
 
     try {
       // Build query parameters
       const params = new URLSearchParams();
+      params.append('page', pageNum.toString());
+      params.append('limit', POSTS_PER_PAGE.toString());
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
       if (selectedCategory) params.append('category', selectedCategory);
       if (location.trim()) params.append('location', location.trim());
@@ -92,45 +104,55 @@ export default function HomePage() {
         if (maxDistance) params.append('maxDistance', maxDistance);
       }
 
-      const response = await fetch(`/api/posts?${params.toString()}`);
+      const response = await fetch(`/api/posts?${params.toString()}`, { signal: abortControllerRef.current.signal });
       if (response.ok) {
         const data = await response.json();
-        setPosts(data);
+        if (append) {
+          setPosts(prev => [...prev, ...data.posts]);
+        } else {
+          setPosts(data.posts);
+        }
+        setHasMore(data.hasMore);
+        setTotalResults(data.total);
       } else {
         throw new Error('Failed to fetch posts');
       }
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-      setError('Failed to load posts. Please try again.');
-      setPosts([]); // Clear posts on error
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error('Error fetching posts:', error);
+        setError('Failed to load posts. Please try again.');
+        if (!append) setPosts([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setSearching(false);
-      if (isInitial) {
-        setIsInitialLoad(false);
-      }
     }
-  }, [searchQuery, selectedCategory, sortBy, location, userLocation, maxDistance, hasFetched]);
+  }, [searchQuery, selectedCategory, sortBy, location, userLocation, maxDistance]);
 
   // Initial load
   useEffect(() => {
-    if (isInitialLoad && !hasFetched) {
-      fetchPosts(true);
-    }
-  }, [isInitialLoad, hasFetched, fetchPosts]);
+    fetchPosts(1, false);
+  }, []);
 
-  // Debounced effect for search and filters (not initial load)
+  // Debounced effect for search and filters
   useEffect(() => {
-    if (!isInitialLoad) {
-      const timer = setTimeout(() => {
-        fetchPosts(false, true);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [searchQuery, selectedCategory, sortBy, location, userLocation, maxDistance, isInitialLoad]);
+    const timer = setTimeout(() => {
+      fetchPosts(1, false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, selectedCategory, sortBy, location, userLocation, maxDistance]);
 
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchPosts(nextPage, true);
+    }
+  };
 
   const handleSearch = (query: string) => {
+    setSearching(true);
     setSearchQuery(query);
   };
 
@@ -169,6 +191,7 @@ export default function HomePage() {
     setSortBy('newest');
     setMaxDistance('50');
     setUserLocation(null);
+    setShowCategories(true);
   };
 
   const getActiveFiltersCount = () => {
@@ -191,10 +214,30 @@ export default function HomePage() {
       />
 
       {/* Categories */}
-      <CategoryGrid 
-        onCategorySelect={setSelectedCategory} 
-        selectedCategory={selectedCategory}
-      />
+      <div className="bg-gradient-to-b from-background via-muted/10 to-background">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between py-4">
+            <h2 className="text-lg font-semibold text-gray-900">Browse Categories</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCategories(!showCategories)}
+              className="gap-2"
+            >
+              {showCategories ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {showCategories ? 'Hide' : 'Show'}
+            </Button>
+          </div>
+          {showCategories && (
+            <div className="pb-6">
+              <CategoryGrid 
+                onCategorySelect={setSelectedCategory} 
+                selectedCategory={selectedCategory}
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Filters and Results */}
       <div className="container mx-auto px-4 py-6">
@@ -330,7 +373,8 @@ export default function HomePage() {
         <div className="flex justify-between items-center mb-4">
           <div>
             <p className="text-base font-semibold">
-              {loading ? 'Loading...' : searching ? 'Searching...' : `${posts.length} items found`}
+              {loading ? 'Loading...' : searching ? 'Searching...' : 
+                totalResults > 0 ? `${totalResults} items found` : `${posts.length} items found`}
             </p>
             {userLocation && (
               <p className="text-sm text-muted-foreground">
@@ -356,7 +400,7 @@ export default function HomePage() {
               </div>
             </CardContent>
           </Card>
-        ) : loading || searching ? (
+        ) : loading ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array(12).fill(0).map((_, i) => (
               <Card key={i} className="overflow-hidden animate-pulse rounded-3xl shadow-lg">
@@ -369,7 +413,7 @@ export default function HomePage() {
               </Card>
             ))}
           </div>
-        ) : posts.length === 0 ? (
+        ) : posts.length === 0 && !searching ? (
           <Card className="text-center py-12 rounded-3xl bg-white/80 backdrop-blur-md border-0 shadow-lg">
             <CardContent>
               <div className="max-w-md mx-auto space-y-4">
@@ -387,10 +431,40 @@ export default function HomePage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} showDistance={!!userLocation} />
-            ))}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {posts.map((post) => (
+                <PostCard key={post.id} post={post} showDistance={!!userLocation} />
+              ))}
+            </div>
+            
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="text-center">
+                <Button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  variant="outline"
+                  size="lg"
+                  className="rounded-full px-8 shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Loading more...
+                    </>
+                  ) : (
+                    `Load More (${totalResults - posts.length} remaining)`
+                  )}
+                </Button>
+              </div>
+            )}
+            
+            {!hasMore && posts.length > 0 && (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">You've reached the end of the results</p>
+              </div>
+            )}
           </div>
         )}
       </div>
