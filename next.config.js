@@ -7,7 +7,7 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig = {
-  output: 'export',
+  output: 'standalone',
   eslint: {
     ignoreDuringBuilds: true,
   },

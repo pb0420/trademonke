@@ -135,12 +135,33 @@ export default function HomePage() {
   };
 
   const handleLocationUpdate = (locationData: LocationData | null) => {
-    setUserLocation(locationData);
-    if (locationData && sortBy === 'newest') {
-      setSortBy('distance');
-    }
+    setUserLocation((prev) => {
+      // Only update if locationData is different from previous
+      if (
+        !prev ||
+        prev.latitude !== locationData?.latitude ||
+        prev.longitude !== locationData?.longitude ||
+        prev.address !== locationData?.address
+      ) {
+        // Only setSortBy if not already 'distance' and locationData is present
+        setSortBy((currentSort) => {
+          if (locationData && currentSort === 'newest') {
+            return 'distance';
+          }
+          return currentSort;
+        });
+        return locationData;
+      }
+      return prev;
+    });
   };
 
+  // Prevent infinite update loop when sortBy is 'distance' but userLocation is removed
+  useEffect(() => {
+    if (sortBy === 'distance' && !userLocation) {
+      setSortBy('newest');
+    }
+  }, [userLocation, sortBy]);
   const clearAllFilters = () => {
     setSearchQuery('');
     setSelectedCategory('');
@@ -329,7 +350,7 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-xl font-bold text-red-600">Error Loading Posts</h3>
                 <p className="text-muted-foreground">{error}</p>
-                <Button onClick={fetchPosts} className="rounded-full shadow-sm">
+                <Button onClick={() => fetchPosts(false, true)} className="rounded-full shadow-sm">
                   Try Again
                 </Button>
               </div>
