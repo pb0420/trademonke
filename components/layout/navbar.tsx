@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, User, Plus, Sparkles, Menu, X } from 'lucide-react';
+import { Bell, User, Plus, Sparkles, Menu, X, Home, Grid3X3, MessageCircle, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/components/providers';
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown';
-import { CreatePostButton } from '@/components/posts/create-post-button';
 
 export function Navbar() {
   const { user } = useAuth();
@@ -23,73 +22,40 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = () => {
-    // In a real app, you would call the sign out API
-    // For now, just reload the page
     window.location.reload();
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-xl border-b border-gray-100 shadow-sm">
+    <nav className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-2xl border-b border-gray-100/50 shadow-lg">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-14 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3 group">
             <div className="relative">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-                <span className="text-sm font-bold text-white">TM</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                <span className="text-xs font-bold text-white">TM</span>
               </div>
-              <div className="absolute -inset-1 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl opacity-20 group-hover:opacity-30 transition-opacity duration-300 blur-sm" />
+              <div className="absolute -inset-1 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300 blur-sm" />
             </div>
             <div className="hidden md:block">
-              <span className="font-bold text-xl bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
+              <span className="font-bold text-lg bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
                 TradeMonkey
               </span>
-              <div className="text-xs text-gray-500 -mt-1">Buy • Sell • Trade</div>
             </div>
           </Link>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-6">
-            <Link 
-              href="/" 
-              className={`text-sm font-medium transition-colors hover:text-blue-600 ${
-                pathname === '/' ? 'text-blue-600' : 'text-gray-700'
-              }`}
-            >
-              Browse
-            </Link>
-            <Link 
-              href="/categories" 
-              className={`text-sm font-medium transition-colors hover:text-blue-600 ${
-                pathname === '/categories' ? 'text-blue-600' : 'text-gray-700'
-              }`}
-            >
-              Categories
-            </Link>
-            {user && (
-              <Link 
-                href="/dashboard" 
-                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
-                  pathname === '/dashboard' ? 'text-blue-600' : 'text-gray-700'
-                }`}
-              >
-                My Listings
-              </Link>
-            )}
-          </div>
 
           {/* Right Section */}
           <div className="flex items-center space-x-3">
             {user ? (
               <>
-                {/* Create Post Button - Big Plus */}
+                {/* Create Post Button */}
                 <Button 
                   asChild 
                   size="sm" 
-                  className="h-10 w-10 p-0 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                  className="h-9 w-9 p-0 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
                 >
                   <Link href="/posts/create" title="Create Listing">
-                    <Plus className="h-5 w-5" />
+                    <Plus className="h-4 w-4" />
                   </Link>
                 </Button>
 
@@ -99,10 +65,10 @@ export function Navbar() {
                 {/* User Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="relative hover:bg-gray-100 rounded-full h-10 w-10 p-0">
+                    <Button variant="ghost" size="sm" className="relative hover:bg-gray-100 rounded-full h-9 w-9 p-0">
                       <User className="h-4 w-4" />
                       {user.is_verified && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm" />
+                        <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white shadow-sm" />
                       )}
                     </Button>
                   </DropdownMenuTrigger>
@@ -178,7 +144,7 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="sm"
-              className="md:hidden h-10 w-10 p-0"
+              className="md:hidden h-9 w-9 p-0"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -186,44 +152,64 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-100 py-4 space-y-2">
+      </div>
+      
+      {/* Bottom Navigation for Mobile */}
+      {user && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-xl border-t border-gray-100 shadow-lg">
+          <div className="flex items-center justify-around py-2">
             <Link 
               href="/" 
-              className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
-              onClick={() => setMobileMenuOpen(false)}
+              className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+                pathname === '/' ? 'text-blue-600 bg-blue-50' : 'text-gray-600'
+              }`}
             >
-              Browse
+              <Home className="h-5 w-5" />
+              <span className="text-xs mt-1">Home</span>
             </Link>
+            
             <Link 
               href="/categories" 
-              className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
-              onClick={() => setMobileMenuOpen(false)}
+              className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+                pathname === '/categories' ? 'text-blue-600 bg-blue-50' : 'text-gray-600'
+              }`}
             >
-              Categories
+              <Grid3X3 className="h-5 w-5" />
+              <span className="text-xs mt-1">Browse</span>
             </Link>
-            {user && (
-              <Link 
-                href="/dashboard" 
-                className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                My Listings
-              </Link>
-            )}
-            {user && user.is_verified && (
+            
+            <Link 
+              href="/posts/create" 
+              className="flex flex-col items-center p-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg"
+            >
+              <Plus className="h-5 w-5" />
+              <span className="text-xs mt-1">Post</span>
+            </Link>
+            
+            {user.is_verified && (
               <Link 
                 href="/messages" 
-                className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
-                onClick={() => setMobileMenuOpen(false)}
+                className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+                  pathname === '/messages' ? 'text-blue-600 bg-blue-50' : 'text-gray-600'
+                }`}
               >
-                Messages
+                <MessageCircle className="h-5 w-5" />
+                <span className="text-xs mt-1">Messages</span>
               </Link>
             )}
+            
+            <Link 
+              href="/dashboard" 
+              className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+                pathname === '/dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-600'
+              }`}
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              <span className="text-xs mt-1">Dashboard</span>
+            </Link>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </nav>
   );
 }

@@ -32,12 +32,16 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <meta name="theme-color" content="#1f2937" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="TradeMonkey" />
       </head>
       <body className={inter.className}>
         <Providers>
-          <div className="min-h-screen bg-background">
+          <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
             <Navbar />
-            <main>{children}</main>
+            <main className="pb-16 md:pb-0">{children}</main>
             <Footer />
           </div>
           <Toaster />
