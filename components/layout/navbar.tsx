@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, User, Plus, Sparkles, Menu, X, Home, Grid3X3, MessageCircle, LayoutDashboard } from 'lucide-react';
+import { Bell, User, Plus, Sparkles, Menu, X, Chrome as Home, Grid3x3 as Grid3X3, MessageCircle, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
